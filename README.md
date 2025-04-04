@@ -11,7 +11,7 @@ If the input passes validation, the service returns a success response indicatin
 
 ## Deployment
 The microservice is structured to be easily deployed to a test instance or production using Render. Deployment can be automated through CI/CD pipelines configured for testing and deployment after every code update. The deployment process involves several steps:
-1.	Containerization: The microservice is containerized using Docker, ensuring consistency across different environments.
+1.	Containerization: The microservice is containerized using Podman, ensuring consistency across different environments.
 2.	Continuous Integration (CI): Automated tests are run on every code commit to ensure that the codebase remains stable and functional.
 3.	Continuous Deployment (CD): Once the tests pass, the code is automatically deployed to the staging environment for further testing.
 4.	Production Deployment: After successful testing in the staging environment, the code is deployed to the production environment, making the new features and fixes available to users.
