@@ -1,4 +1,4 @@
-from flask import request, jsonify
+from flask import Flask, request, jsonify
 from app import create_app
 from app.validation import validate_input
 
@@ -6,9 +6,23 @@ app = create_app()
 
 @app.route('/validate', methods=['POST'])
 def validate():
+    """Endpoint to validate user input."""
+    print("Received request at /validate")
+
     data = request.json
+    if not data:
+        print("Invalid JSON received")
+        return jsonify({"error": "Invalid request"}), 400
+
+    print(f"Data received: {data}")
+
     result = validate_input(data)
-    return jsonify(result)
+
+    print(f"Validation result: {result}")
+
+
+    return jsonify(result), 200
 
 if __name__ == '__main__':
-    app.run(debug=True) # Set debug=False for production
+
+    app.run(host='0.0.0.0', port=5000, debug=True)
