@@ -1,138 +1,129 @@
-# Map of month names to numbers
-month_to_number = {
-    "January": 1, "February": 2, "March": 3, "April": 4,
-    "May": 5, "June": 6, "July": 7, "August": 8,
-    "September": 9, "October": 10, "November": 11, "December": 12
-}
+from flask import Flask, request, jsonify
+from sqlalchemy import create_engine
+import os
+import logging
+from app import create_app
+from app.validation import validate_input
+import requests  # Corrected the import
 
-def validate_month(data):
-    """
-    Validate the 'month' field to ensure it's valid.
-    Args:
-        data (dict): Input data.
-    Returns:
-        str or None: Error message if invalid, otherwise None.
-    """
-    print("Validating month...")
-    if "month" not in data or data["month"] not in month_to_number:
-        print("Invalid month:", data.get("month", None))
-        return "Month must be a valid month name (e.g., 'January')."
-    
-    print("Month validated successfully.")
-    return None
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def convert_month_to_number(data):
-    """
-    Convert the validated month name to its corresponding number.
-    Args:
-        data (dict): Input data.
-    Returns:
-        None: Updates the input data directly with the month as an integer.
-    """
-    if "month" in data:
-        data["month"] = month_to_number[data["month"]]
-        print(f"Month converted to number: {data['month']}")
+# Base URL for the Tax Tables Service
+TAX_SERVICE_BASE_URL = os.getenv("TAX_SERVICE_BASE_URL", "https://salary-calculator-tax-tables-service.onrender.com")
+REBATE_DB_URI = os.getenv("REBATE_DB_URI")
+TAX_DB_URI = os.getenv("TAX_DB_URI")
 
-def validate_year(data):
-    """
-    Validate the 'year' field.
-    Args:
-        data (dict): Input data.
-    Returns:
-        str or None: Error message if invalid, otherwise None.
-    """
-    print("Validating year...")
-    if "year" not in data or not isinstance(data["year"], int) or not (1900 <= data["year"] <= 2100):
-        print("Invalid year:", data.get("year", None))
-        return "Year must be an integer between 1900 and 2100."
-    return None
+# Create the Flask app
+app = create_app()
 
-def validate_age(data):
-    """
-    Validate the 'age' field.
-    Args:
-        data (dict): Input data.
-    Returns:
-        str or None: Error message if invalid, otherwise None.
-    """
-    print("Validating age...")
-    if "age" not in data or not isinstance(data["age"], int) or not (0 <= data["age"] <= 120):
-        print("Invalid age:", data.get("age", None))
-        return "Age must be an integer between 0 and 120."
-    return None
+# Default route for the root URL
+@app.route('/')
+def home():
+    logger.info("Accessing home route.")
+    return "Welcome to the Salary Calculator Service!"
 
-def validate_income_fields(data):
-    """
-    Validate income-related fields such as 'basic_salary', 'commission', etc.
-    Args:
-        data (dict): Input data.
-    Returns:
-        list: List of error messages for invalid fields.
-    """
-    print("Validating income fields...")
-    income_fields = ["basic_salary", "commission", "bonus", "overtime", "leave_pay"]
-    errors = []
-    for field in income_fields:
-        if field in data:
-            print(f"Checking {field}: {data[field]}")
-            if not isinstance(data[field], (int, float)) or data[field] < 0:
-                print(f"Invalid {field}: {data[field]}")
-                errors.append(f"{field} must be a positive number if provided.")
-    return errors
+# Endpoint to validate user input
+@app.route('/validate', methods=['POST'])
+def validate():
+    """Endpoint to validate user input."""
+    logger.info("Received request at /validate")
 
-def calculate_total_income(data):
-    """
-    Calculate the total income from various income fields.
-    Args:
-        data (dict): Input data containing income fields.
-    Returns:
-        float: The total income.
-    """
-    print("Calculating total income...")
-    income_fields = ["basic_salary", "commission", "bonus", "overtime", "leave_pay"]
-    total_income = sum(data.get(field, 0) for field in income_fields if isinstance(data.get(field, 0), (int, float)))
-    print(f"Total income calculated: {total_income}")
-    return total_income
+    data = request.json
+    if not data:
+        logger.warning("Invalid JSON received.")
+        return jsonify({"error": "Invalid request"}), 400
 
-def validate_input(data):
-    """
-    Validate all fields in the input data.
-    Args:
-        data (dict): Input data.
-    Returns:
-        dict: Validation results with 'is_valid' flag and error messages.
-    """
-    print("Starting validation...")
-    errors = []
+    logger.info(f"Data received: {data}")
+    result = validate_input(data)
+    logger.info(f"Validation result: {result}")
 
-    # Validate month first
-    month_error = validate_month(data)
-    if month_error:
-        errors.append(month_error)
-    else:
-        # Convert month to number only if validation passed
-        convert_month_to_number(data)
+    if result["is_valid"]:
+        # Include the updated data (e.g., converted month) in the response
+        return jsonify(result), 200
+    return jsonify(result), 400
 
-    # Proceed with other validations
-    year_error = validate_year(data)
-    if year_error:
-        errors.append(year_error)
+# Endpoint to query the Tax Tables Service
+@app.route('/fetch-tax-details', methods=['POST'])
+def fetch_tax_details():
+    """Endpoint to query the Tax Tables Service."""
+    logger.info("Received request at /fetch-tax-details")
 
-    age_error = validate_age(data)
-    if age_error:
-        errors.append(age_error)
+    data = request.json
+    if not data:
+        logger.warning("Invalid JSON received.")
+        return jsonify({"error": "Invalid request"}), 400
 
-    income_errors = validate_income_fields(data)
-    errors.extend(income_errors)
+    # Validate user input before querying the Tax Service
+    validation_result = validate_input(data)
+    if not validation_result["is_valid"]:
+        logger.warning(f"Validation failed: {validation_result['errors']}")
+        return jsonify(validation_result), 400
 
-    # Calculate total income if no errors in income fields
-    if not income_errors:
-        data["total_income"] = calculate_total_income(data)
+    # Query the Tax Tables Service
+    url = f"{TAX_SERVICE_BASE_URL}/get-tax-details"
+    try:
+        response = requests.post(url, json=data)
+        if response.status_code == 200:
+            tax_details = response.json()
+            logger.info(f"Tax details retrieved successfully: {tax_details}")
+            return jsonify({"tax_details": tax_details}), 200
+        else:
+            logger.error(f"Error from Tax Tables Service: {response.json().get('error', 'Unknown error')}")
+            return jsonify({"error": response.json().get("error", "Unknown error")}), 500
+    except requests.RequestException as e:
+        logger.error(f"Failed to connect to Tax Tables Service: {e}")
+        return jsonify({"error": "Connection to Tax Tables Service failed"}), 500
 
-    # Compile results
-    if errors:
-        print("Validation failed with errors:", errors)
-        return {"is_valid": False, "errors": errors}
+# Endpoint to test database connections
+@app.route('/test-db')
+def test_db_connection():
+    """Endpoint to test database connections."""
+    logger.info("Received request at /test-db.")
 
-    print("Validation successful!")
-    return {"is_valid": True, "data": data}
+    if not REBATE_DB_URI or not TAX_DB_URI:
+        logger.error("Database URIs not configured.")
+        return jsonify({"error": "Database URIs not configured"}), 500
+
+    rebate_engine = create_engine(REBATE_DB_URI)
+    tax_engine = create_engine(TAX_DB_URI)
+
+    try:
+        with rebate_engine.connect() as conn:
+            rebate_test = "Rebate DB Connected"
+        with tax_engine.connect() as conn:
+            tax_test = "Tax DB Connected"
+        logger.info("Database connections successful.")
+    except Exception as e:
+        logger.error(f"Database connection error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"rebate_db_status": rebate_test, "tax_db_status": tax_test}), 200
+
+# Endpoint to test connection with the Tax Tables Service
+@app.route('/test-tax-service')
+def test_tax_service():
+    """Endpoint to test connection with Tax Tables Service."""
+    logger.info("Testing connection with Tax Tables Service...")
+    url = f"{TAX_SERVICE_BASE_URL}/health"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            logger.info("Tax Tables Service is healthy.")
+            return jsonify({"tax_service_status": "Healthy"}), 200
+        else:
+            logger.warning("Tax Tables Service is unhealthy.")
+            return jsonify({"tax_service_status": "Unhealthy"}), 500
+    except requests.RequestException as e:
+        logger.error(f"Failed to connect to Tax Tables Service: {e}")
+        return jsonify({"error": f"Failed to connect: {e}"}), 500
+
+if __name__ == '__main__':
+    logger.info("Starting Salary Calculator Service...")
+    try:
+        debug_mode = os.getenv("DEBUG", "False").lower() == "true"
+        port = int(os.getenv("PORT", 5000))
+        app.run(host='0.0.0.0', port=port, debug=debug_mode)
+    except Exception as e:
+        logger.error(f"Error starting the service: {e}")
