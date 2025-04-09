@@ -4,13 +4,13 @@ import os
 import logging
 from app import create_app
 from app.validation import validate_input
-import requests  # Corrected the import
+import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Base URL for the Tax Tables Service
+# Base URLs for services
 TAX_SERVICE_BASE_URL = os.getenv("TAX_SERVICE_BASE_URL", "https://salary-calculator-tax-tables-service.onrender.com")
 REBATE_DB_URI = os.getenv("REBATE_DB_URI")
 TAX_DB_URI = os.getenv("TAX_DB_URI")
@@ -40,7 +40,7 @@ def validate():
     logger.info(f"Validation result: {result}")
 
     if result["is_valid"]:
-        # Include the updated data (e.g., converted month) in the response
+        # Include the updated data (e.g., total_income and total_income_excluding_commission) in the response
         return jsonify(result), 200
     return jsonify(result), 400
 
@@ -61,10 +61,22 @@ def fetch_tax_details():
         logger.warning(f"Validation failed: {validation_result['errors']}")
         return jsonify(validation_result), 400
 
-    # Query the Tax Tables Service
+    # Extract validated data
+    validated_data = validation_result["data"]
+    total_income = validated_data.get("total_income")
+    total_income_excluding_commission = validated_data.get("total_income_excluding_commission")
+
+    logger.info(f"Total Income: {total_income}, Total Income Excluding Commission: {total_income_excluding_commission}")
+
+    # Pass data to Tax Tables Service
+    payload = {
+        "month": validated_data.get("month"),
+        "year": validated_data.get("year"),
+        "income": total_income
+    }
     url = f"{TAX_SERVICE_BASE_URL}/get-tax-details"
     try:
-        response = requests.post(url, json=data)
+        response = requests.post(url, json=payload)
         if response.status_code == 200:
             tax_details = response.json()
             logger.info(f"Tax details retrieved successfully: {tax_details}")

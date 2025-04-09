@@ -82,17 +82,29 @@ def validate_income_fields(data):
 
 def calculate_total_income(data):
     """
-    Calculate the total income from various income fields.
+    Calculate the total income and total income excluding commission.
     Args:
         data (dict): Input data containing income fields.
     Returns:
-        float: The total income.
+        dict: Total income and total income excluding commission.
     """
-    print("Calculating total income...")
+    print("Calculating total income and total income excluding commission...")
     income_fields = ["basic_salary", "commission", "bonus", "overtime", "leave_pay"]
-    total_income = sum(data.get(field, 0) for field in income_fields if isinstance(data.get(field, 0), (int, float)))
+
+    total_income = sum(
+        data.get(field, 0) for field in income_fields if isinstance(data.get(field, 0), (int, float))
+    )
+    total_income_excluding_commission = sum(
+        data.get(field, 0) for field in income_fields if field != "commission" and isinstance(data.get(field, 0), (int, float))
+    )
+
     print(f"Total income calculated: {total_income}")
-    return total_income
+    print(f"Total income excluding commission calculated: {total_income_excluding_commission}")
+
+    return {
+        "total_income": total_income,
+        "total_income_excluding_commission": total_income_excluding_commission
+    }
 
 def validate_input(data):
     """
@@ -125,9 +137,10 @@ def validate_input(data):
     income_errors = validate_income_fields(data)
     errors.extend(income_errors)
 
-    # Calculate total income if no errors in income fields
+    # Calculate total incomes if no errors in income fields
     if not income_errors:
-        data["total_income"] = calculate_total_income(data)
+        income_totals = calculate_total_income(data)
+        data.update(income_totals)
 
     # Compile results
     if errors:
