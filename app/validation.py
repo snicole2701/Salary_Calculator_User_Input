@@ -80,6 +80,20 @@ def validate_income_fields(data):
                 errors.append(f"{field} must be a positive number if provided.")
     return errors
 
+def calculate_total_income(data):
+    """
+    Calculate the total income from various income fields.
+    Args:
+        data (dict): Input data containing income fields.
+    Returns:
+        float: The total income.
+    """
+    print("Calculating total income...")
+    income_fields = ["basic_salary", "commission", "bonus", "overtime", "leave_pay"]
+    total_income = sum(data.get(field, 0) for field in income_fields if isinstance(data.get(field, 0), (int, float)))
+    print(f"Total income calculated: {total_income}")
+    return total_income
+
 def validate_input(data):
     """
     Validate all fields in the input data.
@@ -111,10 +125,14 @@ def validate_input(data):
     income_errors = validate_income_fields(data)
     errors.extend(income_errors)
 
+    # Calculate total income if no errors in income fields
+    if not income_errors:
+        data["total_income"] = calculate_total_income(data)
+
     # Compile results
     if errors:
         print("Validation failed with errors:", errors)
         return {"is_valid": False, "errors": errors}
 
     print("Validation successful!")
-    return {"is_valid": True, "errors": []}
+    return {"is_valid": True, "data": data}
