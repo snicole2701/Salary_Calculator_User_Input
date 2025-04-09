@@ -4,6 +4,7 @@ import os
 import logging
 from app import create_app
 from app.validation import validate_input
+from requests import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
