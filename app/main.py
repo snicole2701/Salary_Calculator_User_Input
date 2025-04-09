@@ -1,8 +1,16 @@
 from flask import Flask, request, jsonify
 from sqlalchemy import create_engine
 import os
+import logging
 from app import create_app
 from app.validation import validate_input
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Base URL for the Tax Tables Service
+TAX_SERVICE_BASE_URL = os.getenv("TAX_SERVICE_BASE_URL", "https://salary-calculator-tax-tables-service.onrender.com")
 
 # Create the Flask app
 app = create_app()
@@ -16,25 +24,66 @@ def home():
 @app.route('/validate', methods=['POST'])
 def validate():
     """Endpoint to validate user input."""
-    print("Received request at /validate")
+    logger.info("Received request at /validate")
 
     data = request.json
     if not data:
-        print("Invalid JSON received")
+        logger.warning("Invalid JSON received")
         return jsonify({"error": "Invalid request"}), 400
 
-    print(f"Data received: {data}")
+    logger.info(f"Data received: {data}")
     result = validate_input(data)
-    print(f"Validation result: {result}")
+    logger.info(f"Validation result: {result}")
 
-    return jsonify(result), 200
+    if result["is_valid"]:
+        # Include the updated data (e.g., converted month) in the response
+        return jsonify({"is_valid": True, "data": data}), 200
+    return jsonify(result), 400
+
+# Endpoint to query the Tax Tables Service
+@app.route('/fetch-tax-details', methods=['POST'])
+def fetch_tax_details():
+    """Endpoint to query the Tax Tables Service."""
+    logger.info("Received request at /fetch-tax-details")
+
+    data = request.json
+    if not data:
+        logger.warning("Invalid JSON received")
+        return jsonify({"error": "Invalid request"}), 400
+
+    # Validate user input before querying the Tax Service
+    validation_result = validate_input(data)
+    if not validation_result["is_valid"]:
+        logger.warning(f"Validation failed: {validation_result['errors']}")
+        return jsonify(validation_result), 400
+
+    # Query the Tax Tables Service
+    url = f"{TAX_SERVICE_BASE_URL}/get-tax-details"
+    try:
+        response = requests.post(url, json=data)
+        if response.status_code == 200:
+            tax_details = response.json()
+            logger.info(f"Tax details retrieved: {tax_details}")
+            return jsonify({"tax_details": tax_details}), 200
+        else:
+            logger.error(f"Error from Tax Tables Service: {response.json().get('error', 'Unknown error')}")
+            return jsonify({"error": response.json().get("error", "Unknown error")}), 500
+    except requests.RequestException as e:
+        logger.error(f"Failed to connect to Tax Tables Service: {e}")
+        return jsonify({"error": "Connection to Tax Tables Service failed"}), 500
 
 # Endpoint to test database connections
 @app.route('/test-db')
 def test_db_connection():
     """Endpoint to test database connections."""
+    logger.info("Received request at /test-db")
+
     rebate_db_uri = os.getenv("REBATE_DB_URI")
     tax_db_uri = os.getenv("TAX_DB_URI")
+    if not rebate_db_uri or not tax_db_uri:
+        logger.error("Database URIs not configured")
+        return jsonify({"error": "Database URIs not configured"}), 500
+
     rebate_engine = create_engine(rebate_db_uri)
     tax_engine = create_engine(tax_db_uri)
 
@@ -43,10 +92,30 @@ def test_db_connection():
             rebate_test = "Rebate DB Connected"
         with tax_engine.connect() as conn:
             tax_test = "Tax DB Connected"
+        logger.info("Database connections successful")
     except Exception as e:
+        logger.error(f"Database connection error: {e}")
         return jsonify({"error": str(e)}), 500
 
     return jsonify({"rebate_db_status": rebate_test, "tax_db_status": tax_test}), 200
+
+# Endpoint to test connection with the Tax Tables Service
+@app.route('/test-tax-service')
+def test_tax_service():
+    """Endpoint to test connection with Tax Tables Service."""
+    logger.info("Testing connection with Tax Tables Service...")
+    url = f"{TAX_SERVICE_BASE_URL}/health"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            logger.info("Tax Tables Service is healthy")
+            return jsonify({"tax_service_status": "Healthy"}), 200
+        else:
+            logger.warning("Tax Tables Service is unhealthy")
+            return jsonify({"tax_service_status": "Unhealthy"}), 500
+    except requests.RequestException as e:
+        logger.error(f"Failed to connect to Tax Tables Service: {e}")
+        return jsonify({"error": f"Failed to connect: {e}"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
