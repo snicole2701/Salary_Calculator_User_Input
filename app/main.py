@@ -40,7 +40,8 @@ def validate():
     logger.info(f"Validation result: {result}")
 
     if result["is_valid"]:
-        # Include the updated data (e.g., calculated incomes) in the response
+        # Include the updated data (including age group) in the response
+        logger.info(f"Validation successful. Age group assigned: {result['data'].get('age_group')}")
         return jsonify(result), 200
     return jsonify(result), 400
 
@@ -67,16 +68,19 @@ def fetch_tax_details():
     total_income_excluding_commission = validated_data.get("total_income_excluding_commission")
     projected_annual_income = validated_data.get("projected_annual_income")
     projected_annual_income_plus_bonus_leave = validated_data.get("projected_annual_income_plus_bonus_leave")
+    age_group = validated_data.get("age_group")
 
     logger.info(f"Total Income: {total_income}, Total Income Excluding Commission: {total_income_excluding_commission}")
     logger.info(f"Projected Annual Income: {projected_annual_income}")
     logger.info(f"Projected Annual Income Plus Bonus and Leave Pay: {projected_annual_income_plus_bonus_leave}")
+    logger.info(f"Age Group: {age_group}")
 
     # Pass data to Tax Tables Service
     payload = {
         "month": validated_data.get("month"),
         "year": validated_data.get("year"),
-        "income": total_income  # The value being queried is the total income
+        "income": total_income,  # The value being queried is the total income
+        "age_group": age_group
     }
     url = f"{TAX_SERVICE_BASE_URL}/get-tax-details"
     try:

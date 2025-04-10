@@ -49,7 +49,7 @@ def validate_year(data):
 
 def validate_age(data):
     """
-    Validate the 'age' field.
+    Validate the 'age' field and assign an age group based on the age.
     Args:
         data (dict): Input data.
     Returns:
@@ -59,6 +59,16 @@ def validate_age(data):
     if "age" not in data or not isinstance(data["age"], int) or not (0 <= data["age"] <= 120):
         print("Invalid age:", data.get("age", None))
         return "Age must be an integer between 0 and 120."
+
+    # Assign age group
+    age = data["age"]
+    if age <= 64:
+        data["age_group"] = "Primary"
+    elif 65 <= age <= 74:
+        data["age_group"] = "Secondary (65 and older)"
+    else:
+        data["age_group"] = "Tertiary (75 and older)"
+    print(f"Age group assigned: {data['age_group']}")
     return None
 
 def validate_income_fields(data):
