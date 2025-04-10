@@ -80,30 +80,51 @@ def validate_income_fields(data):
                 errors.append(f"{field} must be a positive number if provided.")
     return errors
 
-def calculate_total_income(data):
+def calculate_income_options(data):
     """
-    Calculate the total income and total income excluding commission.
+    Calculate various income options including total income, total income excluding commission,
+    projected annual income, and projected annual income plus bonus and leave pay.
     Args:
         data (dict): Input data containing income fields.
     Returns:
-        dict: Total income and total income excluding commission.
+        dict: Income calculations.
     """
-    print("Calculating total income and total income excluding commission...")
+    print("Calculating income options...")
     income_fields = ["basic_salary", "commission", "bonus", "overtime", "leave_pay"]
 
+    # Total income
     total_income = sum(
         data.get(field, 0) for field in income_fields if isinstance(data.get(field, 0), (int, float))
     )
+
+    # Total income excluding commission
     total_income_excluding_commission = sum(
         data.get(field, 0) for field in income_fields if field != "commission" and isinstance(data.get(field, 0), (int, float))
     )
 
+    # Projected annual income (excluding bonus and leave pay)
+    projected_annual_income = sum(
+        data.get(field, 0) for field in income_fields if field not in ["bonus", "leave_pay"]
+        and isinstance(data.get(field, 0), (int, float))
+    ) * 12
+
+    # Projected annual income plus bonus and leave pay
+    projected_annual_income_plus_bonus_leave = (
+        projected_annual_income +
+        data.get("bonus", 0) +
+        data.get("leave_pay", 0)
+    )
+
     print(f"Total income calculated: {total_income}")
-    print(f"Total income excluding commission calculated: {total_income_excluding_commission}")
+    print(f"Total income excluding commission: {total_income_excluding_commission}")
+    print(f"Projected annual income: {projected_annual_income}")
+    print(f"Projected annual income plus bonus and leave pay: {projected_annual_income_plus_bonus_leave}")
 
     return {
         "total_income": total_income,
-        "total_income_excluding_commission": total_income_excluding_commission
+        "total_income_excluding_commission": total_income_excluding_commission,
+        "projected_annual_income": projected_annual_income,
+        "projected_annual_income_plus_bonus_leave": projected_annual_income_plus_bonus_leave
     }
 
 def validate_input(data):
@@ -137,10 +158,10 @@ def validate_input(data):
     income_errors = validate_income_fields(data)
     errors.extend(income_errors)
 
-    # Calculate total incomes if no errors in income fields
+    # Calculate income options if no errors in income fields
     if not income_errors:
-        income_totals = calculate_total_income(data)
-        data.update(income_totals)
+        income_calculations = calculate_income_options(data)
+        data.update(income_calculations)
 
     # Compile results
     if errors:
