@@ -1,10 +1,10 @@
+import requests
+import logging
 from flask import Flask, request, jsonify
 from sqlalchemy import create_engine
 import os
-import logging
 from app import create_app
 from app.validation import validate_input
-import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -12,24 +12,25 @@ logger = logging.getLogger(__name__)
 
 # Base URLs for services
 TAX_SERVICE_BASE_URL = os.getenv("TAX_SERVICE_BASE_URL", "https://salary-calculator-tax-tables-service.onrender.com")
+USER_INPUT_SERVICE_URL = os.getenv("USER_INPUT_SERVICE_URL", "https://salary-calculator-user-input.onrender.com")
+CALCULATIONS_SERVICE_URL = os.getenv("CALCULATIONS_SERVICE_URL", "http://placeholder-calculations-service-url.com")  # Placeholder for Calculations Service URL
+FEEDBACK_SERVICE_BASE_URL = os.getenv("FEEDBACK_SERVICE_BASE_URL", "http://placeholder-feedback-service-url.com")  # Placeholder for Feedback Service URL
 REBATE_DB_URI = os.getenv("REBATE_DB_URI")
 TAX_DB_URI = os.getenv("TAX_DB_URI")
 
 # Create the Flask app
 app = create_app()
 
-# Default route for the root URL
 @app.route('/')
 def home():
+    """Home route."""
     logger.info("Accessing home route.")
     return "Welcome to the Salary Calculator Service!"
 
-# Endpoint to validate user input
 @app.route('/validate', methods=['POST'])
 def validate():
     """Endpoint to validate user input."""
     logger.info("Received request at /validate")
-
     data = request.json
     if not data:
         logger.warning("Invalid JSON received.")
@@ -40,47 +41,30 @@ def validate():
     logger.info(f"Validation result: {result}")
 
     if result["is_valid"]:
-        # Include the updated data (including age group) in the response
         logger.info(f"Validation successful. Age group assigned: {result['data'].get('age_group')}")
         return jsonify(result), 200
     return jsonify(result), 400
 
-# Endpoint to query the Tax Tables Service
 @app.route('/fetch-tax-details', methods=['POST'])
 def fetch_tax_details():
     """Endpoint to query the Tax Tables Service."""
     logger.info("Received request at /fetch-tax-details")
-
     data = request.json
     if not data:
         logger.warning("Invalid JSON received.")
         return jsonify({"error": "Invalid request"}), 400
 
-    # Validate user input before querying the Tax Service
     validation_result = validate_input(data)
     if not validation_result["is_valid"]:
         logger.warning(f"Validation failed: {validation_result['errors']}")
         return jsonify(validation_result), 400
 
-    # Extract validated data
     validated_data = validation_result["data"]
-    total_income = validated_data.get("total_income")
-    total_income_excluding_commission = validated_data.get("total_income_excluding_commission")
-    projected_annual_income = validated_data.get("projected_annual_income")
-    projected_annual_income_plus_bonus_leave = validated_data.get("projected_annual_income_plus_bonus_leave")
-    age_group = validated_data.get("age_group")
-
-    logger.info(f"Total Income: {total_income}, Total Income Excluding Commission: {total_income_excluding_commission}")
-    logger.info(f"Projected Annual Income: {projected_annual_income}")
-    logger.info(f"Projected Annual Income Plus Bonus and Leave Pay: {projected_annual_income_plus_bonus_leave}")
-    logger.info(f"Age Group: {age_group}")
-
-    # Pass data to Tax Tables Service
     payload = {
         "month": validated_data.get("month"),
         "year": validated_data.get("year"),
-        "income": total_income,  # The value being queried is the total income
-        "age_group": age_group
+        "income": validated_data.get("basic_salary"),  # Example income field
+        "age_group": validated_data.get("age_group")
     }
     url = f"{TAX_SERVICE_BASE_URL}/get-tax-details"
     try:
@@ -96,32 +80,50 @@ def fetch_tax_details():
         logger.error(f"Failed to connect to Tax Tables Service: {e}")
         return jsonify({"error": "Connection to Tax Tables Service failed"}), 500
 
-# Endpoint to test database connections
-@app.route('/test-db')
-def test_db_connection():
-    """Endpoint to test database connections."""
-    logger.info("Received request at /test-db.")
+@app.route('/send-feedback', methods=['POST'])
+def send_feedback():
+    """Endpoint to send feedback to the Feedback Service."""
+    logger.info("Received request at /send-feedback")
+    feedback_data = request.json
+    if not feedback_data:
+        logger.warning("Invalid feedback data received.")
+        return jsonify({"error": "Invalid feedback data"}), 400
 
-    if not REBATE_DB_URI or not TAX_DB_URI:
-        logger.error("Database URIs not configured.")
-        return jsonify({"error": "Database URIs not configured"}), 500
-
-    rebate_engine = create_engine(REBATE_DB_URI)
-    tax_engine = create_engine(TAX_DB_URI)
-
+    url = f"{FEEDBACK_SERVICE_BASE_URL}/send-feedback"
     try:
-        with rebate_engine.connect() as conn:
-            rebate_test = "Rebate DB Connected"
-        with tax_engine.connect() as conn:
-            tax_test = "Tax DB Connected"
-        logger.info("Database connections successful.")
-    except Exception as e:
-        logger.error(f"Database connection error: {e}")
-        return jsonify({"error": str(e)}), 500
+        response = requests.post(url, json=feedback_data)
+        if response.status_code == 200:
+            logger.info("Feedback successfully sent.")
+            return jsonify(response.json()), 200
+        else:
+            logger.error(f"Error sending feedback: {response.status_code}")
+            return jsonify({"error": response.json().get("error", "Unknown error")}), 500
+    except requests.RequestException as e:
+        logger.error(f"Failed to connect to Feedback Service: {e}")
+        return jsonify({"error": "Connection to Feedback Service failed"}), 500
 
-    return jsonify({"rebate_db_status": rebate_test, "tax_db_status": tax_test}), 200
+@app.route('/calculate', methods=['POST'])
+def calculate():
+    """Endpoint to send data to Calculations Service."""
+    logger.info("Received request at /calculate")
+    calculation_data = request.json
+    if not calculation_data:
+        logger.warning("Invalid calculation data received.")
+        return jsonify({"error": "Invalid calculation data"}), 400
 
-# Endpoint to test connection with the Tax Tables Service
+    url = f"{CALCULATIONS_SERVICE_URL}/perform-calculations"
+    try:
+        response = requests.post(url, json=calculation_data)
+        if response.status_code == 200:
+            logger.info("Calculations successfully performed.")
+            return jsonify(response.json()), 200
+        else:
+            logger.error(f"Error performing calculations: {response.status_code}")
+            return jsonify({"error": response.json().get("error", "Unknown error")}), 500
+    except requests.RequestException as e:
+        logger.error(f"Failed to connect to Calculations Service: {e}")
+        return jsonify({"error": "Connection to Calculations Service failed"}), 500
+
 @app.route('/test-tax-service')
 def test_tax_service():
     """Endpoint to test connection with Tax Tables Service."""

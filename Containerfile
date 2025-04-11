@@ -1,20 +1,11 @@
-# Use the base image
-FROM python:3.9-slim
+FROM python:3.10-slim
 
-# Set the working directory
 WORKDIR /app
 
-# Copy the requirements file first to leverage Docker's caching
 COPY . /app
 
-# Install the dependencies
-RUN pip install --no-cache-dir -r requirements.txt && pip list
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code into the container
-COPY app /app
+EXPOSE 5000
 
-#Set python path to /app
-ENV PYTHONPATH=/app
-
-# Define the command to run the application
-CMD ["python", "main.py"]
+CMD ["python", "-m", "app.main"]
