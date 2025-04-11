@@ -20,6 +20,12 @@ def home():
     logger.info("Accessing home route.")
     return "Welcome to the Salary Calculator Service!"
 
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint."""
+    logger.info("Health endpoint accessed.")
+    return jsonify({"status": "OK"}), 200
+
 @app.route('/add-user-input', methods=['POST'])
 def add_user_input():
     """
