@@ -61,44 +61,32 @@ def get_user_input():
     logger.info(f"Serving user input: {user_input_data}")
     return jsonify(user_input_data), 200
 
-@app.route('/send-feedback', methods=['POST'])
-def send_feedback():
-    """Endpoint to send feedback to the Feedback Service."""
-    logger.info("Received request at /send-feedback")
-    feedback_data = request.json
-    if not feedback_data:
-        logger.warning("Invalid feedback data received.")
-        return jsonify({"error": "Invalid feedback data"}), 400
+@app.route('/trigger-calculations', methods=['POST'])
+def trigger_calculations():
+    """
+    Endpoint to forward stored user input to the Calculations Service (Microservice 3).
+    """
+    global user_input_data
+    if not user_input_data:
+        logger.warning("No user input stored to send to Calculations Service.")
+        return jsonify({"error": "No user input available to trigger calculations."}), 400
 
-    url = os.getenv("FEEDBACK_SERVICE_BASE_URL", "http://placeholder-feedback-service-url.com") + "/send-feedback"
+    url = f"{CALCULATIONS_SERVICE_URL}/perform-calculations"
+    logger.info(f"Forwarding user input to Calculations Service at URL: {url}")
+
     try:
-        response = requests.post(url, json=feedback_data)
+        response = requests.post(url, json=user_input_data)
+        logger.info(f"Response from Calculations Service: {response.status_code} - {response.text}")
+
         if response.status_code == 200:
-            logger.info("Feedback successfully sent.")
+            logger.info("Calculations triggered successfully.")
             return jsonify(response.json()), 200
         else:
-            logger.error(f"Error sending feedback: {response.status_code}")
+            logger.error(f"Error triggering calculations: {response.status_code} - {response.text}")
             return jsonify({"error": response.json().get("error", "Unknown error")}), 500
     except requests.RequestException as e:
-        logger.error(f"Failed to connect to Feedback Service: {e}")
-        return jsonify({"error": "Connection to Feedback Service failed"}), 500
-
-@app.route('/test-calculations-service')
-def test_calculations_service():
-    """Endpoint to test connection with Calculations Service."""
-    logger.info("Testing connection with Calculations Service...")
-    url = f"{CALCULATIONS_SERVICE_URL}/health"
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            logger.info("Calculations Service is healthy.")
-            return jsonify({"calculations_service_status": "Healthy"}), 200
-        else:
-            logger.warning("Calculations Service is unhealthy.")
-            return jsonify({"calculations_service_status": "Unhealthy"}), 500
-    except requests.RequestException as e:
         logger.error(f"Failed to connect to Calculations Service: {e}")
-        return jsonify({"error": f"Failed to connect: {e}"}), 500
+        return jsonify({"error": "Connection to Calculations Service failed"}), 500
 
 if __name__ == '__main__':
     logger.info("Starting Salary Calculator Service...")
