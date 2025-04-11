@@ -33,6 +33,7 @@ def health():
 def add_user_input():
     """
     Endpoint to add user input and store it for retrieval.
+    Automatically triggers Microservice 3 for calculations.
     """
     global user_input_data
     logger.info("Received request at /add-user-input")
@@ -46,7 +47,23 @@ def add_user_input():
     # Store the user input globally
     user_input_data = user_input
     logger.info(f"User input stored: {user_input}")
-    return jsonify({"message": "User input stored successfully!"}), 200
+
+    # Automatically trigger Microservice 3 for calculations
+    url = f"{CALCULATIONS_SERVICE_URL}/perform-calculations"
+    logger.info(f"Automatically triggering Microservice 3 at URL: {url}")
+    try:
+        response = requests.post(url, json=user_input_data)
+        logger.info(f"Response from Calculations Service: {response.status_code} - {response.text}")
+
+        if response.status_code == 200:
+            logger.info("Calculations triggered successfully.")
+            return jsonify({"message": "User input stored and calculations triggered successfully!", "calculation_response": response.json()}), 200
+        else:
+            logger.error(f"Error triggering calculations: {response.status_code} - {response.text}")
+            return jsonify({"message": "User input stored, but failed to trigger calculations.", "error": response.json().get("error", "Unknown error")}), 500
+    except requests.RequestException as e:
+        logger.error(f"Failed to connect to Calculations Service: {e}")
+        return jsonify({"message": "User input stored, but connection to Calculations Service failed.", "error": str(e)}), 500
 
 @app.route('/get-user-input', methods=['GET'])
 def get_user_input():
