@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # Base URLs for services
 TAX_SERVICE_BASE_URL = os.getenv("TAX_SERVICE_BASE_URL", "https://salary-calculator-tax-tables-service.onrender.com")
 USER_INPUT_SERVICE_URL = os.getenv("USER_INPUT_SERVICE_URL", "https://salary-calculator-user-input.onrender.com")
-CALCULATIONS_SERVICE_URL = os.getenv("CALCULATIONS_SERVICE_URL", "http://placeholder-calculations-service-url.com")  # Placeholder for Calculations Service URL
+CALCULATIONS_SERVICE_URL = os.getenv("CALCULATIONS_SERVICE_URL", "https://salary-calculator-calculation-service.onrender.com")
 FEEDBACK_SERVICE_BASE_URL = os.getenv("FEEDBACK_SERVICE_BASE_URL", "http://placeholder-feedback-service-url.com")  # Placeholder for Feedback Service URL
 REBATE_DB_URI = os.getenv("REBATE_DB_URI")
 TAX_DB_URI = os.getenv("TAX_DB_URI")
